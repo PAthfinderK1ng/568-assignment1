@@ -1,6 +1,6 @@
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
-
+#include <cmath>
 #include <chrono>
 #include <cstring>
 #include <iomanip>
@@ -85,8 +85,10 @@ int main(int argc, char** argv) {
     float elapsed_ms = 0.0f;
     if (opt.impl == "baseline" || opt.impl == "naive" || opt.impl == "tiled") {
         cudaStream_t stream = 0;
+
         cudaEvent_t start, stop;
         check_cuda(cudaEventCreate(&start, stream), "record start event");
+        check_cuda(cudaEventCreate(&stop), "create stop");
         if (opt.impl == "baseline") {
             launch_naive_gemm(d_a, d_b, d_c, m, n, k, stream);
         } else if (opt.impl == "naive") {
@@ -103,7 +105,7 @@ int main(int argc, char** argv) {
         check_cublas(cublasCreate(&handle), "cublasCreate");
         const float alpha = 1.0f;
         const float beta = 0.0f;
-        check_cuda(cudaEventRecord(start), "record start");
+        check_cuda(cudaEventRecord(start, stream), "record start");
         check_cublas(
             cublasSgemm(handle,
                         CUBLAS_OP_N,
@@ -120,7 +122,7 @@ int main(int argc, char** argv) {
                         d_c,
                         n),
             "cublasSgemm");
-        check_cuda(cudaEventRecord(stop), "record stop");
+        check_cuda(cudaEventRecord(stop, stream), "record stop");
         check_cuda(cudaEventSynchronize(stop), "sync stop");
         check_cuda(cudaEventElapsedTime(&elapsed_ms, start, stop), "elapsed");
         check_cublas(cublasDestroy(handle), "cublasDestroy");
@@ -128,39 +130,37 @@ int main(int argc, char** argv) {
         throw std::invalid_argument("Unknown implementation: " + opt.impl);
     }
 
+    
     check_cuda(cudaMemcpy(h_c.data(), d_c, bytes_c, cudaMemcpyDeviceToHost), "copy d_c->h_c");
+
     if (opt.verify) {
         cublasHandle_t handle;
         check_cublas(cublasCreate(&handle), "cublasCreate for verification");
+
         const float alpha = 1.0f;
-        const float beta = 0.0f;
+        const float beta  = 0.0f;
+
         check_cublas(
             cublasSgemm(handle,
-                        CUBLAS_OP_N,
-                        CUBLAS_OP_N,
-                        n,
-                        m,
-                        k,
-                        &alpha,
-                        d_b,
-                        n,
-                        d_a,
-                        k,
-                        &beta,
-                        d_c,
-                        n),
-            "cublasSgemm for verification");
-        check_cuda(cudaMemcpy(h_ref.data(), d_c, bytes_c, cudaMemcpyDeviceToHost), "copy d_c->h_ref for verification");
+                    CUBLAS_OP_N, CUBLAS_OP_N,
+                    n, m, k,
+                    &alpha,
+                    d_b, n,
+                    d_a, k,
+                    &beta,
+                    d_c, n),
+        "cublasSgemm for verification");
+
+        check_cuda(cudaMemcpy(h_ref.data(), d_c, bytes_c, cudaMemcpyDeviceToHost), "copy d_c->h_ref");
         check_cublas(cublasDestroy(handle), "cublasDestroy for verification");
-    }
-    float max_err = 0.0f;
-    for (size_t i = 0; i < h_c.size(); ++i) {
-        float err = std::fabs(h_c[i] - h_ref[i]);
-        if (err > max_err) {
-            max_err = err;
+
+        float max_err = 0.0f;
+        for (size_t i = 0; i < h_c.size(); ++i) {
+            float err = std::fabs(h_c[i] - h_ref[i]);
+            if (err > max_err) max_err = err;
         }
+        std::cout << "MaxAbsError=" << std::scientific << max_err << std::endl;
     }
-    std::cout << "Max error: " << max_err << std::endl;
     if (elapsed_ms > 0.0f) {
         std::cout << std::fixed << std::setprecision(2);
         std::cout << "Impl=" << opt.impl << " M=" << m << " N=" << n << " K=" << k
