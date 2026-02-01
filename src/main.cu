@@ -89,6 +89,7 @@ int main(int argc, char** argv) {
 
     float elapsed_ms = 0.0f;
     if (opt.impl == "baseline" || opt.impl == "naive" || opt.impl == "tiled") {
+        check_cuda(cudaEventRecord(start, stream), "record start event");
         if (opt.impl == "baseline") {
             launch_naive_gemm(d_a, d_b, d_c, m, n, k, stream);
         } else if (opt.impl == "naive") {
