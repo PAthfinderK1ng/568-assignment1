@@ -82,13 +82,13 @@ int main(int argc, char** argv) {
     check_cuda(cudaMemcpy(d_b, h_b.data(), bytes_b, cudaMemcpyHostToDevice), "cudaMemcpy h_b to d_b");
     check_cuda(cudaMemset(d_c, 0, bytes_c), "cudaMemset d_c to 0");
 
+    cudaStream_t stream = 0;
+    cudaEvent_t start, stop;
+    check_cuda(cudaEventCreate(&start), "record start event");
+    check_cuda(cudaEventCreate(&stop), "create stop");
+
     float elapsed_ms = 0.0f;
     if (opt.impl == "baseline" || opt.impl == "naive" || opt.impl == "tiled") {
-        cudaStream_t stream = 0;
-
-        cudaEvent_t start, stop;
-        check_cuda(cudaEventCreate(&start, stream), "record start event");
-        check_cuda(cudaEventCreate(&stop), "create stop");
         if (opt.impl == "baseline") {
             launch_naive_gemm(d_a, d_b, d_c, m, n, k, stream);
         } else if (opt.impl == "naive") {
