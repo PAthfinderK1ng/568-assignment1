@@ -92,10 +92,6 @@ inline void launch_tiled_gemm(const float* d_a,
         dim3 block(32, 32, 1);
         dim3 grid = make_grid(M, N, 32);
         gemm_tiled_kernel<32><<<grid, block, 0, stream>>>(d_a, d_b, d_c, M, N, K);
-    } else if (tile_size == 64) {
-        dim3 block(64, 64, 1);
-        dim3 grid = make_grid(M, N, 64);
-        gemm_tiled_kernel<64><<<grid, block, 0, stream>>>(d_a, d_b, d_c, M, N, K);
     } else {
         fprintf(stderr, "Unsupported tile size: %d. Defaulting to 32.\n", tile_size);
         dim3 block(32, 32, 1);

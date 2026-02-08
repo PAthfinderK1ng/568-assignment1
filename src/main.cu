@@ -91,49 +91,85 @@ int main(int argc, char** argv) {
     check_cuda(cudaEventCreate(&start), "record start event");
     check_cuda(cudaEventCreate(&stop), "create stop");
 
+    const int warmup_iters = 10;
+    const int repeat_iters = 50;
     float elapsed_ms = 0.0f;
     if (opt.impl == "baseline" || opt.impl == "naive" || opt.impl == "tiled") {
+        for (int i = 0; i < warmup_iters; ++i) {
+            if (opt.impl == "baseline") {
+                launch_naive_gemm(d_a, d_b, d_c, m, n, k, stream);
+            } else if (opt.impl == "naive") {
+                launch_naive_gemm(d_a, d_b, d_c, m, n, k, stream);
+            } else if (opt.impl == "tiled") {
+                launch_tiled_gemm(d_a, d_b, d_c, m, n, k, opt.tile_size, stream);
+            }
+        }
         check_cuda(cudaEventRecord(start, stream), "record start event");
-        if (opt.impl == "baseline") {
-            launch_naive_gemm(d_a, d_b, d_c, m, n, k, stream);
-        } else if (opt.impl == "naive") {
-            launch_naive_gemm(d_a, d_b, d_c, m, n, k, stream);
-        } else if (opt.impl == "tiled") {
-            launch_tiled_gemm(d_a, d_b, d_c, m, n, k, opt.tile_size, stream);
+        for (int i = 0; i < repeat_iters; ++i) {
+            if (opt.impl == "baseline") {
+                launch_naive_gemm(d_a, d_b, d_c, m, n, k, stream);
+            } else if (opt.impl == "naive") {
+                launch_naive_gemm(d_a, d_b, d_c, m, n, k, stream);
+            } else if (opt.impl == "tiled") {
+                launch_tiled_gemm(d_a, d_b, d_c, m, n, k, opt.tile_size, stream);
+            }
         }
         check_cuda(cudaEventRecord(stop, stream), "record stop event");
         check_cuda(cudaEventSynchronize(stop), "synchronize stop event");
         if (cudaEventElapsedTime(&elapsed_ms, start, stop) != cudaSuccess) {
             elapsed_ms = 0.0f;
+        } else {
+            elapsed_ms /= static_cast<float>(repeat_iters);
         }
-        (void)elapsed_ms;  // remove once timing implemented
     } else if (opt.impl == "cublas") {
         cublasHandle_t handle;
         check_cublas(cublasCreate(&handle), "cublasCreate");
         check_cublas(cublasSetStream(handle, stream), "cublasSetStream");
         const float alpha = 1.0f;
         const float beta = 0.0f;
+        for (int i = 0; i < warmup_iters; ++i) {
+            check_cublas(
+                cublasSgemm(handle,
+                            CUBLAS_OP_N,
+                            CUBLAS_OP_N,
+                            n,
+                            m,
+                            k,
+                            &alpha,
+                            d_b,
+                            n,
+                            d_a,
+                            k,
+                            &beta,
+                            d_c,
+                            n),
+                "cublasSgemm warmup");
+        }
         check_cuda(cudaEventRecord(start, stream), "record start");
-        check_cublas(
-            cublasSgemm(handle,
-                        CUBLAS_OP_N,
-                        CUBLAS_OP_N,
-                        n,
-                        m,
-                        k,
-                        &alpha,
-                        d_b,
-                        n,
-                        d_a,
-                        k,
-                        &beta,
-                        d_c,
-                        n),
-            "cublasSgemm");
+        for (int i = 0; i < repeat_iters; ++i) {
+            check_cublas(
+                cublasSgemm(handle,
+                            CUBLAS_OP_N,
+                            CUBLAS_OP_N,
+                            n,
+                            m,
+                            k,
+                            &alpha,
+                            d_b,
+                            n,
+                            d_a,
+                            k,
+                            &beta,
+                            d_c,
+                            n),
+                "cublasSgemm");
+        }
         check_cuda(cudaEventRecord(stop, stream), "record stop");
         check_cuda(cudaEventSynchronize(stop), "sync stop");
         if (cudaEventElapsedTime(&elapsed_ms, start, stop) != cudaSuccess) {
             elapsed_ms = 0.0f;
+        } else {
+            elapsed_ms /= static_cast<float>(repeat_iters);
         }
         check_cublas(cublasDestroy(handle), "cublasDestroy");
     } else {
