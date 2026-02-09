@@ -132,40 +132,50 @@ int main(int argc, char** argv) {
         const float beta = 0.0f;
         for (int i = 0; i < warmup_iters; ++i) {
             check_cublas(
-                cublasSgemm(handle,
-                            CUBLAS_OP_N,
-                            CUBLAS_OP_N,
-                            n,
-                            m,
-                            k,
-                            &alpha,
-                            d_b,
-                            n,
-                            d_a,
-                            k,
-                            &beta,
-                            d_c,
-                            n),
-                "cublasSgemm warmup");
+                cublasGemmEx(handle,
+                             CUBLAS_OP_N,
+                             CUBLAS_OP_N,
+                             n,
+                             m,
+                             k,
+                             &alpha,
+                             d_b,
+                             CUDA_R_32F,
+                             n,
+                             d_a,
+                             CUDA_R_32F,
+                             k,
+                             &beta,
+                             d_c,
+                             CUDA_R_32F,
+                             n,
+                             CUBLAS_COMPUTE_32F_PEDANTIC,
+                             CUBLAS_GEMM_DEFAULT),
+                "cublasGemmEx warmup");
         }
         check_cuda(cudaEventRecord(start, stream), "record start");
         for (int i = 0; i < repeat_iters; ++i) {
             check_cublas(
-                cublasSgemm(handle,
-                            CUBLAS_OP_N,
-                            CUBLAS_OP_N,
-                            n,
-                            m,
-                            k,
-                            &alpha,
-                            d_b,
-                            n,
-                            d_a,
-                            k,
-                            &beta,
-                            d_c,
-                            n),
-                "cublasSgemm");
+                cublasGemmEx(handle,
+                             CUBLAS_OP_N,
+                             CUBLAS_OP_N,
+                             n,
+                             m,
+                             k,
+                             &alpha,
+                             d_b,
+                             CUDA_R_32F,
+                             n,
+                             d_a,
+                             CUDA_R_32F,
+                             k,
+                             &beta,
+                             d_c,
+                             CUDA_R_32F,
+                             n,
+                             CUBLAS_COMPUTE_32F_PEDANTIC,
+                             CUBLAS_GEMM_DEFAULT),
+                "cublasGemmEx");
         }
         check_cuda(cudaEventRecord(stop, stream), "record stop");
         check_cuda(cudaEventSynchronize(stop), "sync stop");
@@ -194,15 +204,26 @@ int main(int argc, char** argv) {
         const float beta  = 0.0f;
 
         check_cublas(
-            cublasSgemm(handle,
-                    CUBLAS_OP_N, CUBLAS_OP_N,
-                    n, m, k,
-                    &alpha,
-                    d_b, n,
-                    d_a, k,
-                    &beta,
-                    d_c, n),
-        "cublasSgemm for verification");
+            cublasGemmEx(handle,
+                         CUBLAS_OP_N,
+                         CUBLAS_OP_N,
+                         n,
+                         m,
+                         k,
+                         &alpha,
+                         d_b,
+                         CUDA_R_32F,
+                         n,
+                         d_a,
+                         CUDA_R_32F,
+                         k,
+                         &beta,
+                         d_c,
+                         CUDA_R_32F,
+                         n,
+                         CUBLAS_COMPUTE_32F_PEDANTIC,
+                         CUBLAS_GEMM_DEFAULT),
+        "cublasGemmEx for verification");
 
         check_cuda(cudaMemcpy(h_ref.data(), d_c, bytes_c, cudaMemcpyDeviceToHost), "copy d_c->h_ref");
         check_cublas(cublasDestroy(handle), "cublasDestroy for verification");

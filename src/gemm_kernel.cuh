@@ -36,8 +36,8 @@ __global__ void gemm_tiled_kernel(const float* __restrict__ A,
                                   int M,
                                   int N,
                                   int K) {
-    __shared__ float tile_A[TileSize][TileSize + 1];
-    __shared__ float tile_B[TileSize][TileSize + 1];
+    __shared__ float tile_A[TileSize][TileSize];
+    __shared__ float tile_B[TileSize][TileSize];
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
     float value = 0.0f;
