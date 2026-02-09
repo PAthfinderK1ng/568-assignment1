@@ -67,39 +67,35 @@ __global__ void gemm_tiled_kernel(const float* __restrict__ A,
     }
 }
 
-__global__ void gemm_tiled_1x8_kernel_16(const float* __restrict__ A,
+__global__ void gemm_tiled_2x2_kernel_16(const float* __restrict__ A,
                                         const float* __restrict__ B,
                                         float* __restrict__ C,
                                         int M,
                                         int N,
                                         int K) {
-    __shared__ float tile_A[16][16];
-    __shared__ float tile_B[16][128];
-    int row = blockIdx.y * 16 + threadIdx.y;
-    int col0 = blockIdx.x * 128 + threadIdx.x;
+    __shared__ float tile_A[16][32];
+    __shared__ float tile_B[16][32];
+    int row0 = blockIdx.y * 32 + threadIdx.y;
+    int row1 = row0 + 16;
+    int col0 = blockIdx.x * 32 + threadIdx.x;
     int col1 = col0 + 16;
-    int col2 = col0 + 32;
-    int col3 = col0 + 48;
-    int col4 = col0 + 64;
-    int col5 = col0 + 80;
-    int col6 = col0 + 96;
-    int col7 = col0 + 112;
-    float acc0 = 0.0f;
-    float acc1 = 0.0f;
-    float acc2 = 0.0f;
-    float acc3 = 0.0f;
-    float acc4 = 0.0f;
-    float acc5 = 0.0f;
-    float acc6 = 0.0f;
-    float acc7 = 0.0f;
+    float acc00 = 0.0f;
+    float acc01 = 0.0f;
+    float acc10 = 0.0f;
+    float acc11 = 0.0f;
     int tiles = (K + 15) / 16;
     for (int t = 0; t < tiles; ++t) {
         int a_col = t * 16 + threadIdx.x;
         int b_row = t * 16 + threadIdx.y;
-        if (row < M && a_col < K) {
-            tile_A[threadIdx.y][threadIdx.x] = A[row * K + a_col];
+        if (row0 < M && a_col < K) {
+            tile_A[threadIdx.y][threadIdx.x] = A[row0 * K + a_col];
         } else {
             tile_A[threadIdx.y][threadIdx.x] = 0.0f;
+        }
+        if (row1 < M && a_col < K) {
+            tile_A[threadIdx.y][threadIdx.x + 16] = A[row1 * K + a_col];
+        } else {
+            tile_A[threadIdx.y][threadIdx.x + 16] = 0.0f;
         }
         if (b_row < K && col0 < N) {
             tile_B[threadIdx.y][threadIdx.x] = B[b_row * N + col0];
@@ -111,74 +107,31 @@ __global__ void gemm_tiled_1x8_kernel_16(const float* __restrict__ A,
         } else {
             tile_B[threadIdx.y][threadIdx.x + 16] = 0.0f;
         }
-        if (b_row < K && col2 < N) {
-            tile_B[threadIdx.y][threadIdx.x + 32] = B[b_row * N + col2];
-        } else {
-            tile_B[threadIdx.y][threadIdx.x + 32] = 0.0f;
-        }
-        if (b_row < K && col3 < N) {
-            tile_B[threadIdx.y][threadIdx.x + 48] = B[b_row * N + col3];
-        } else {
-            tile_B[threadIdx.y][threadIdx.x + 48] = 0.0f;
-        }
-        if (b_row < K && col4 < N) {
-            tile_B[threadIdx.y][threadIdx.x + 64] = B[b_row * N + col4];
-        } else {
-            tile_B[threadIdx.y][threadIdx.x + 64] = 0.0f;
-        }
-        if (b_row < K && col5 < N) {
-            tile_B[threadIdx.y][threadIdx.x + 80] = B[b_row * N + col5];
-        } else {
-            tile_B[threadIdx.y][threadIdx.x + 80] = 0.0f;
-        }
-        if (b_row < K && col6 < N) {
-            tile_B[threadIdx.y][threadIdx.x + 96] = B[b_row * N + col6];
-        } else {
-            tile_B[threadIdx.y][threadIdx.x + 96] = 0.0f;
-        }
-        if (b_row < K && col7 < N) {
-            tile_B[threadIdx.y][threadIdx.x + 112] = B[b_row * N + col7];
-        } else {
-            tile_B[threadIdx.y][threadIdx.x + 112] = 0.0f;
-        }
         __syncthreads();
         #pragma unroll
         for (int k = 0; k < 16; ++k) {
-            float a = tile_A[threadIdx.y][k];
-            acc0 = fmaf(a, tile_B[k][threadIdx.x], acc0);
-            acc1 = fmaf(a, tile_B[k][threadIdx.x + 16], acc1);
-            acc2 = fmaf(a, tile_B[k][threadIdx.x + 32], acc2);
-            acc3 = fmaf(a, tile_B[k][threadIdx.x + 48], acc3);
-            acc4 = fmaf(a, tile_B[k][threadIdx.x + 64], acc4);
-            acc5 = fmaf(a, tile_B[k][threadIdx.x + 80], acc5);
-            acc6 = fmaf(a, tile_B[k][threadIdx.x + 96], acc6);
-            acc7 = fmaf(a, tile_B[k][threadIdx.x + 112], acc7);
+            float a0 = tile_A[threadIdx.y][k];
+            float a1 = tile_A[threadIdx.y][k + 16];
+            float b0 = tile_B[k][threadIdx.x];
+            float b1 = tile_B[k][threadIdx.x + 16];
+            acc00 = fmaf(a0, b0, acc00);
+            acc01 = fmaf(a0, b1, acc01);
+            acc10 = fmaf(a1, b0, acc10);
+            acc11 = fmaf(a1, b1, acc11);
         }
         __syncthreads();
     }
-    if (row < M && col0 < N) {
-        C[row * N + col0] = acc0;
+    if (row0 < M && col0 < N) {
+        C[row0 * N + col0] = acc00;
     }
-    if (row < M && col1 < N) {
-        C[row * N + col1] = acc1;
+    if (row0 < M && col1 < N) {
+        C[row0 * N + col1] = acc01;
     }
-    if (row < M && col2 < N) {
-        C[row * N + col2] = acc2;
+    if (row1 < M && col0 < N) {
+        C[row1 * N + col0] = acc10;
     }
-    if (row < M && col3 < N) {
-        C[row * N + col3] = acc3;
-    }
-    if (row < M && col4 < N) {
-        C[row * N + col4] = acc4;
-    }
-    if (row < M && col5 < N) {
-        C[row * N + col5] = acc5;
-    }
-    if (row < M && col6 < N) {
-        C[row * N + col6] = acc6;
-    }
-    if (row < M && col7 < N) {
-        C[row * N + col7] = acc7;
+    if (row1 < M && col1 < N) {
+        C[row1 * N + col1] = acc11;
     }
 }
 
@@ -204,8 +157,8 @@ inline void launch_tiled_gemm(const float* d_a,
                               cudaStream_t stream) {
     if (tile_size == 16) {
         dim3 block(16, 16, 1);
-        dim3 grid((N + 127) / 128, (M + 15) / 16, 1);
-        gemm_tiled_1x8_kernel_16<<<grid, block, 0, stream>>>(d_a, d_b, d_c, M, N, K);
+        dim3 grid((N + 31) / 32, (M + 31) / 32, 1);
+        gemm_tiled_2x2_kernel_16<<<grid, block, 0, stream>>>(d_a, d_b, d_c, M, N, K);
     } else if (tile_size == 32) {
         dim3 block(32, 32, 1);
         dim3 grid = make_grid(M, N, 32);
