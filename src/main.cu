@@ -150,7 +150,7 @@ int main(int argc, char** argv) {
                              CUDA_R_32F,
                              n,
                              CUBLAS_COMPUTE_32F_PEDANTIC,
-                             CUBLAS_GEMM_DEFAULT),
+                             CUBLAS_GEMM_ALGO0),
                 "cublasGemmEx warmup");
         }
         check_cuda(cudaEventRecord(start, stream), "record start");
@@ -174,7 +174,7 @@ int main(int argc, char** argv) {
                              CUDA_R_32F,
                              n,
                              CUBLAS_COMPUTE_32F_PEDANTIC,
-                             CUBLAS_GEMM_DEFAULT),
+                             CUBLAS_GEMM_ALGO0),
                 "cublasGemmEx");
         }
         check_cuda(cudaEventRecord(stop, stream), "record stop");
@@ -222,7 +222,7 @@ int main(int argc, char** argv) {
                          CUDA_R_32F,
                          n,
                          CUBLAS_COMPUTE_32F_PEDANTIC,
-                         CUBLAS_GEMM_DEFAULT),
+                         CUBLAS_GEMM_ALGO0),
         "cublasGemmEx for verification");
 
         check_cuda(cudaMemcpy(h_ref.data(), d_c, bytes_c, cudaMemcpyDeviceToHost), "copy d_c->h_ref");
