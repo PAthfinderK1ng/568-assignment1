@@ -21,8 +21,9 @@ __global__ void gemm_naive_kernel(const float* __restrict__ A,
     int col = blockIdx.x * blockDim.x + threadIdx.x;
     if (row < M && col < N) {
         float value = 0.0f;
+        #pragma unroll 4
         for (int k = 0; k < K; ++k) {
-            value += A[row * K + k] * B[k * N + col];
+            value = fmaf(A[row * K + k], B[k * N + col], value);
         }
         C[row * N + col] = value;
     }
@@ -40,7 +41,8 @@ __global__ void gemm_tiled_kernel(const float* __restrict__ A,
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
     float value = 0.0f;
-    for (int t = 0; t < (K + TileSize - 1) / TileSize; ++t) {
+    int tiles = (K + TileSize - 1) / TileSize;
+    for (int t = 0; t < tiles; ++t) {
         int a_col = t * TileSize + threadIdx.x;
         int b_row = t * TileSize + threadIdx.y;
         if (row < M && a_col < K) {
@@ -54,8 +56,9 @@ __global__ void gemm_tiled_kernel(const float* __restrict__ A,
             tile_B[threadIdx.y][threadIdx.x] = 0.0f;
         }
         __syncthreads();
+        #pragma unroll
         for (int k = 0; k < TileSize; ++k) {
-            value += tile_A[threadIdx.y][k] * tile_B[k][threadIdx.x];
+            value = fmaf(tile_A[threadIdx.y][k], tile_B[k][threadIdx.x], value);
         }
         __syncthreads();
     }
