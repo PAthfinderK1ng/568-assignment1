@@ -56,7 +56,7 @@ __global__ void gemm_tiled_kernel(const float* __restrict__ A,
             tile_B[threadIdx.y][threadIdx.x] = 0.0f;
         }
         __syncthreads();
-        #pragma unroll
+        #pragma unroll 8
         for (int k = 0; k < TileSize; ++k) {
             value = fmaf(tile_A[threadIdx.y][k], tile_B[k][threadIdx.x], value);
         }
