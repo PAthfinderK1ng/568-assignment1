@@ -124,8 +124,10 @@ int main(int argc, char** argv) {
     } else if (opt.impl == "cublas") {
         cublasHandle_t handle;
         check_cublas(cublasCreate(&handle), "cublasCreate");
-        check_cublas(cublasSetMathMode(handle, CUBLAS_PEDANTIC_MATH), "cublasSetMathMode");
         check_cublas(cublasSetStream(handle, stream), "cublasSetStream");
+        auto math_status = cublasSetMathMode(handle, CUBLAS_PEDANTIC_MATH);
+        std::cout << "cublasSetMathMode status=" << static_cast<int>(math_status) << std::endl;
+        check_cublas(math_status, "cublasSetMathMode");
         const float alpha = 1.0f;
         const float beta = 0.0f;
         for (int i = 0; i < warmup_iters; ++i) {
@@ -183,7 +185,10 @@ int main(int argc, char** argv) {
     if (opt.verify) {
         cublasHandle_t handle;
         check_cublas(cublasCreate(&handle), "cublasCreate for verification");
-        check_cublas(cublasSetMathMode(handle, CUBLAS_PEDANTIC_MATH), "cublasSetMathMode for verification");
+        check_cublas(cublasSetStream(handle, stream), "cublasSetStream for verification");
+        auto verify_math_status = cublasSetMathMode(handle, CUBLAS_PEDANTIC_MATH);
+        std::cout << "cublasSetMathMode(verify) status=" << static_cast<int>(verify_math_status) << std::endl;
+        check_cublas(verify_math_status, "cublasSetMathMode for verification");
 
         const float alpha = 1.0f;
         const float beta  = 0.0f;
