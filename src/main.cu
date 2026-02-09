@@ -124,6 +124,7 @@ int main(int argc, char** argv) {
     } else if (opt.impl == "cublas") {
         cublasHandle_t handle;
         check_cublas(cublasCreate(&handle), "cublasCreate");
+        check_cublas(cublasSetMathMode(handle, CUBLAS_PEDANTIC_MATH), "cublasSetMathMode");
         check_cublas(cublasSetStream(handle, stream), "cublasSetStream");
         const float alpha = 1.0f;
         const float beta = 0.0f;
@@ -182,6 +183,7 @@ int main(int argc, char** argv) {
     if (opt.verify) {
         cublasHandle_t handle;
         check_cublas(cublasCreate(&handle), "cublasCreate for verification");
+        check_cublas(cublasSetMathMode(handle, CUBLAS_PEDANTIC_MATH), "cublasSetMathMode for verification");
 
         const float alpha = 1.0f;
         const float beta  = 0.0f;
