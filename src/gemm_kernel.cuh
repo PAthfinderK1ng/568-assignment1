@@ -67,6 +67,55 @@ __global__ void gemm_tiled_kernel(const float* __restrict__ A,
     }
 }
 
+__global__ void gemm_tiled_1x2_kernel_16(const float* __restrict__ A,
+                                        const float* __restrict__ B,
+                                        float* __restrict__ C,
+                                        int M,
+                                        int N,
+                                        int K) {
+    __shared__ float tile_A[16][16];
+    __shared__ float tile_B[16][32];
+    int row = blockIdx.y * 16 + threadIdx.y;
+    int col0 = blockIdx.x * 32 + threadIdx.x;
+    int col1 = col0 + 16;
+    float acc0 = 0.0f;
+    float acc1 = 0.0f;
+    int tiles = (K + 15) / 16;
+    for (int t = 0; t < tiles; ++t) {
+        int a_col = t * 16 + threadIdx.x;
+        int b_row = t * 16 + threadIdx.y;
+        if (row < M && a_col < K) {
+            tile_A[threadIdx.y][threadIdx.x] = A[row * K + a_col];
+        } else {
+            tile_A[threadIdx.y][threadIdx.x] = 0.0f;
+        }
+        if (b_row < K && col0 < N) {
+            tile_B[threadIdx.y][threadIdx.x] = B[b_row * N + col0];
+        } else {
+            tile_B[threadIdx.y][threadIdx.x] = 0.0f;
+        }
+        if (b_row < K && col1 < N) {
+            tile_B[threadIdx.y][threadIdx.x + 16] = B[b_row * N + col1];
+        } else {
+            tile_B[threadIdx.y][threadIdx.x + 16] = 0.0f;
+        }
+        __syncthreads();
+        #pragma unroll
+        for (int k = 0; k < 16; ++k) {
+            float a = tile_A[threadIdx.y][k];
+            acc0 = fmaf(a, tile_B[k][threadIdx.x], acc0);
+            acc1 = fmaf(a, tile_B[k][threadIdx.x + 16], acc1);
+        }
+        __syncthreads();
+    }
+    if (row < M && col0 < N) {
+        C[row * N + col0] = acc0;
+    }
+    if (row < M && col1 < N) {
+        C[row * N + col1] = acc1;
+    }
+}
+
 inline void launch_naive_gemm(const float* d_a,
                               const float* d_b,
                               float* d_c,
@@ -89,8 +138,8 @@ inline void launch_tiled_gemm(const float* d_a,
                               cudaStream_t stream) {
     if (tile_size == 16) {
         dim3 block(16, 16, 1);
-        dim3 grid = make_grid(M, N, 16);
-        gemm_tiled_kernel<16><<<grid, block, 0, stream>>>(d_a, d_b, d_c, M, N, K);
+        dim3 grid((N + 31) / 32, (M + 15) / 16, 1);
+        gemm_tiled_1x2_kernel_16<<<grid, block, 0, stream>>>(d_a, d_b, d_c, M, N, K);
     } else if (tile_size == 32) {
         dim3 block(32, 32, 1);
         dim3 grid = make_grid(M, N, 32);
